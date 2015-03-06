@@ -6,7 +6,6 @@ use std::any::Any;
 
 //import and reexport dyn_property
 use super::dyn_property::DynProperty;
-use super::pubdyn_property::UndefinedProperty;
 
 
 pub struct InnerDynObject<Key> {
@@ -19,12 +18,10 @@ pub struct InnerDynObject<Key> {
 
 impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     
-    pub fn new<T>() -> InnerDynObject<T> 
-        where T: Eq + Hash 
-    {
+    pub fn new() -> InnerDynObject<Key> {
         InnerDynObject {
             undefined_property: DynProperty::undefined(),
-            data: HashMap::<T, DynProperty>::new()
+            data: HashMap::<Key, DynProperty>::new()
         }
     }
 
@@ -89,9 +86,9 @@ impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
 }
 
 #[cfg(test)]
-mod test_inner_dyn_object {
+mod test {
     use super::InnerDynObject;
-    use super::UndefinedProperty;
+    use super::super::UndefinedProperty;
     
     fn create_dummy() -> InnerDynObject<&'static str> {
         InnerDynObject::<&'static str>::new()

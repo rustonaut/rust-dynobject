@@ -58,7 +58,7 @@ impl DynProperty {
 }
 
 #[cfg(test)]
-mod test_dyn_property {
+mod test {
     use super::DynProperty;
     use super::UndefinedProperty;
 

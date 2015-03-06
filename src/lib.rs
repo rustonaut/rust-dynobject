@@ -8,15 +8,15 @@
 //for now it is unstable
 #![unstable(feature="alloc,core")]
 
-use std::result::Result;
-use std::ops::{Index, IndexMut};
-use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::cell::RefMut;
 use std::hash::Hash;
-use std::any::Any;
 
 //import and reexport dyn_property
 pub use dyn_property::DynProperty;
 pub use dyn_property::UndefinedProperty;
+pub use inner_dyn_object::InnerDynObject;
 
 ///! 
 ///! InnerDynObject is a kind of dynamic objects witch allows
@@ -31,227 +31,95 @@ pub use dyn_property::UndefinedProperty;
 ///!      InnerDynObject might be preferable
 
 mod dyn_property;
+mod inner_dyn_object;
 
 
-pub struct InnerDynObject<Key> {
-    //initialise this allways with DynProperty::undefined();
-    //FIXME move this as assoziated Konstant (with unsave) or static
-    undefined_property: DynProperty,
-    data: HashMap<Key, DynProperty>
+pub struct DynObject<Key> {
+    inner: Rc<RefCell<InnerDynObject<Key>>>
 }
 
 
-impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
-    
-    pub fn new<T>() -> InnerDynObject<T> 
-        where T: Eq + Hash 
-    {
-        InnerDynObject {
-            undefined_property: DynProperty::undefined(),
-            data: HashMap::<T, DynProperty>::new()
-        }
-    }
+impl<Key> DynObject<Key> where Key: Eq+Hash {
 
-    pub fn set_property<T>(&mut self, key: &Key, value: Box<T>) -> Result<Box<T>,Box<T>> 
-        where T: Any + 'static 
+    pub fn new<T>() -> DynObject<T>
+        where T: Eq + Hash
     {
-        self.index_mut(key).set(value)
+        let x =  InnerDynObject::<T>::new();
+        let cell = RefCell::new(x);
+        let rc = Rc::new(cell);
+        DynObject {
+            inner: rc
+        }
     }
     
-    //FIXME if already existig init_value is lost (droped)
-    pub fn create_property<T>(&mut self, key: Key, init_value: Box<T>) -> bool 
-        where T: Any + 'static  
-    {
-        if self.data.contains_key(&key) {
-            false
-        } else {
-            self.data.insert(key, DynProperty::new(init_value));
-            true
-        }
-    }
-
-    pub fn remove_property<T>(&mut self, key: &Key) -> Result<Box<T>, ()> 
-        where T: Any + 'static
-    {
-        if !self.index(key).is_inner_type::<T>() {
-            return Err( () );
-        }
-        Ok(self.data.remove(key).unwrap().destruct::<T>().unwrap())
-    }
-
-    pub fn exists_property(&self, key: &Key) -> bool {
-        self.data.contains_key(key)
-    }
-
-    pub fn exists_property_with_type<T>(&self, key: &Key) -> bool 
-        where T: Any + 'static 
-    {
-        self.index(key).is_inner_type::<T>()
+    /// aquire the DynObject to perform operations on it
+    ///
+    /// # Panics
+    /// if someone else aquired it and didn't relase it jet
+    /// (by droping the returned RefMut, witch is often done 
+    /// implicitly)
+    pub fn aquire(&mut self) -> RefMut<InnerDynObject<Key>> {
+        self.inner.borrow_mut()
     }
 }
 
-impl<Key: Hash+Eq> Index<Key> for InnerDynObject<Key> {
-    type Output = DynProperty;
- 
-    //if there is no matching Key return a DynProperty of UndefinedPropertyType
-    fn index<'a>(&'a self, index: &Key) -> &'a DynProperty {
-        match self.data.get(index) {
-            Some(data) => data,
-            None => &self.undefined_property
+impl<T> Clone for DynObject<T> where T: Eq+Hash {
+
+    fn clone(&self) -> Self {
+        DynObject {
+            inner: self.inner.clone()
         }
     }
 }
 
-impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
-
-    fn index_mut<'a>(&'a mut self, index: &Key) -> &'a mut DynProperty {
-        match self.data.get_mut(index) {
-            Some(data) => data,
-            None => &mut self.undefined_property
-        }
-    }
-}
 
 #[cfg(test)]
 mod test_dyn_object {
-    use super::InnerDynObject;
-    use super::UndefinedProperty;
-    
-    fn create_dummy() -> InnerDynObject<&'static str> {
-        InnerDynObject::<&'static str>::new()
-    }
+    #![allow(unused_variables)]
 
-    #[test]
-    fn exist_property_should_return_false_if_inexisting() {
-        let obj = create_dummy();
-        assert!( !obj.exists_property(&"hallo") );
-    }
+    use super::DynObject;
 
-
-    #[test]
-    fn after_creating_a_property_should_exist() {
-        let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
-        assert!(obj.exists_property(&"hallo"));
-    }
-
-
-    #[test]
-    fn exist_property_with_type_should_return_true_if_property_exists_and_has_given_type() {
-        let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
-        assert!(obj.exists_property_with_type::<i32>(&"hallo"));
-    }
-
-    #[test]
-    fn exists_property_with_type_should_return_false_if_property_is_undefined() {
-        let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
-        assert!(!obj.exists_property_with_type::<i32>(&"NOThallo"));
-    }
-
-    #[test]
-    fn exists_property_with_type_should_return_fals_if_the_type_mismatches() {
-        let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
-        assert!(!obj.exists_property_with_type::<u16>(&"hallo"));
-    }
-
-    #[test]
-    fn create_property_should_return_true_if_key_is_new() {
-        let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
-    }
-
-    
-
-    #[test]
-    fn create_property_should_return_false_if_key_already_exists() {
-        let mut obj = create_dummy();
-        assert!(  obj.create_property("hallo", Box::new(23i32)) );
-        assert!( !obj.create_property("hallo", Box::new(20i32)) );
-
-    }
-
-    #[test]
-    fn set_property_should_err_if_property_does_not_exist() {
-        let mut obj = create_dummy();
-        assert!( !obj.exists_property(&"hallo") );
-        let res = obj.set_property(&"hallo", Box::new(44i32));
-        assert_eq!(res, Err(Box::new(44i32)));
-    }
-
-    #[test]
-    fn set_property_should_err_if_property_type_is_wrong() {
-        let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
-        let res = obj.set_property(&"hallo", Box::new("oh falsch"));
-        assert_eq!(res, Err(Box::new("oh falsch")));
+    fn create_dummy() -> DynObject<&'static str> {
+        DynObject::<&'static str>::new()
     }
     
     #[test]
-    fn set_property_should_return_the_old_value_if_property_exists_and_type_matches() {
-        let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
-        let res = obj.set_property(&"hallo", Box::new(44i32));
-        assert_eq!(res, Ok(Box::new(23i32)));
-        //obj["hallo"] expands to obj.index(&"hallo") 
-        assert_eq!(obj["hallo"].as_ref::<i32>().unwrap(), &44i32);
+    fn aquire_should_not_panic_if_only_on_instance_exists() {
+        let mut x = create_dummy();
+        let data = x.aquire();
     }
 
     #[test]
-    fn remove_property_should_fail_if_property_does_not_exists() {
-        let mut obj = create_dummy();
-        let res = obj.remove_property::<i32>(&"hallo");
-        assert_eq!(res, Err( () ));
+    #[should_fail]
+    fn aquire_multiple_times_should_panic() {
+        let mut x = create_dummy();
+        let mut obj_ref_2 = x.clone();
+        let data = x.aquire();
+        let data2 = obj_ref_2.aquire();
     }
 
     #[test]
-    fn remove_property_should_fail_if_the_type_mismatches() {
-        let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
-        let res = obj.remove_property::<u16>(&"hallo");
-        assert_eq!(res, Err( () ));
-        assert!(obj.exists_property(&"hallo"));
+    fn aquire_multiple_times_after_relasing_each_should_not_fail() {
+        let mut x = create_dummy();
+        {
+            let data = x.aquire();
+        }
+        let data2 = x.aquire();
+    }
+    
+    fn set_data(mut target: DynObject<&'static str>, value: i32) {
+        target.aquire().create_property(&"hallo", Box::new(value));
     }
 
     #[test]
-    fn remove_property_should_return_the_property_value_if_succesful() {
-        let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
-        let res = obj.remove_property::<i32>(&"hallo");
-        assert_eq!(res, Ok(Box::new(23i32)));
-    }
-
-    //TODO test index
-    #[test]
-    fn index_should_return_the_property_if_existing() {
-        let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
-        let ref res = obj["hallo"];
-        assert!(res.is_inner_type::<i32>());
-        match res.as_ref::<i32>() {
-            Some(ref_val) => assert_eq!(ref_val, &23i32),
-            None => panic!("expected to be borrowable in this situration")
-        }   
-    }
-
-    #[test]
-    fn index_should_return_a_property_of_type_undefined_if_inexisting() {
-        let obj = create_dummy();
-        assert!(obj["hallo"].is_inner_type::<UndefinedProperty>());
-    }
-
-    #[test]
-    fn index_should_also_allow_mutable_access() {
-        let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
-        match obj["hallo"].as_mut::<i32>() {
-            Some(ref_val) => {
-                let mut dummy = 23i32;
-                assert_eq!(ref_val, &mut dummy)
-            }
-            None => panic!("expected to be borrowable in this situration")
-        }   
+    fn mutiple_cloned_dyn_object_should_share_the_same_core() {
+        let value = 23i32;
+        let mut obj1 = create_dummy(); 
+        set_data(obj1.clone(), value);
+        let obj = obj1.aquire();
+        match obj["hallo"].as_ref::<i32>() {
+            Some(data) => assert_eq!(data, &value),
+            None => panic!("type mismatch, error in test or other class")
+        }
     }
 }
