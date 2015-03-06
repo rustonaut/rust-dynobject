@@ -49,12 +49,78 @@ mod inner_dyn_object;
 
 //guard types, not should be used in boxes?
 //FIXME maybe add the TypeID as parameter to the function call
-type SetPropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
-type CreatePropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
-type RemovePropertyGuard<'a ,Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
-type AccessPropertyGuardRef<'a, Key> = FnMut(&'a InnerDynObject<Key>, &'a Key) -> bool;
+//the last bool indikates if the operation normaly would have succeded(true). if so but false is returned
+//it will also fail, even through normaly valide. Use e.g. if succeded == false { panic!("auto
+//panic on failure") }
+type SetPropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type CreatePropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type RemovePropertyGuard<'a ,Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type AccessPropertyGuardRef<'a, Key> = FnMut(&'a InnerDynObject<Key>, &'a Key, bool) -> bool;
 type AccessPropertyGuardMut<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
 
+/// some predefined functions usable as guards
+pub mod guard_helper {
+
+    use super::InnerDynObject;
+    use std::hash::Hash;
+
+    /// nop is a placeholder
+    ///
+    /// # Note
+    /// guards are optional so nop is not realy needed
+    #[allow(unused_variables)]
+    pub fn nop<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        true 
+    }
+    
+    /// a variation of `nop` usable for `AccessPropertyGuardRef`
+    #[allow(unused_variables)]
+    pub fn nop_no_mut<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        true 
+    }
+    
+    /// panics whenever a operation failed
+    ///
+    /// whenever a operation failed and would normaly return a Err this guard will panic
+    #[allow(unused_variables)]
+    pub fn panic_on_fail<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        if succeded == false {
+            panic!("automaicly panicing on failed operation")
+        }
+        true
+    }
+
+    /// a `panic_on_fail` (helper function) variation for `AccessPropertyGuardRef`
+    #[allow(unused_variables)]
+    pub fn panic_on_fail_no_mut<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        if succeded == false {
+            panic!("automaicly panicing on failed operation")
+        }
+        true
+    }
+
+    /// this guard prevent operations from succeding
+    ///
+    /// this guard will prevent any operation from succeding. By setting this guard e.g. for
+    /// Set, AccessMut, Create and Remove a DynObject can be locked, meaning behaves like
+    /// immutable even when having a mutable reference. Like with all guards this can
+    /// lead to unexpected behaviour
+    #[allow(unused_variables)]
+    pub fn lock<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        false
+    }
+
+}
 
 pub struct DynObject<Key> {
     inner: Rc<RefCell<InnerDynObject<Key>>>
