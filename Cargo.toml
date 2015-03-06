@@ -1,0 +1,5 @@
+[package]
+
+name = "DynObject"
+version = "0.0.1"
+authors = ["Philipp korber <philippkorber@gmail.com>"]
