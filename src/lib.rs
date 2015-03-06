@@ -33,11 +33,11 @@ pub use dyn_property::UndefinedProperty;
 pub use inner_dyn_object::InnerDynObject;
 
 ///! 
-///! InnerDynObject is a kind of dynamic objects witch allows
+///! InnerDynObject is a kind of dynamic object witch allows
 ///! creating and deleting properties at runtime.
 ///! This includs runtime type checks over genereic functions
 ///! so that the rest of your programm don't has to care mutch
-///! about. Neverless this has to backdrawings:
+///! about. Neverless this has three backdrawings:
 ///!   1. Accessing the variables allways returns a Result
 ///!   2. it has to own the data
 ///!   3. it's slower. If you have a group of variables putng
@@ -122,7 +122,7 @@ mod test_dyn_object {
     }
     
     fn set_data(mut target: DynObject<&'static str>, value: i32) {
-        target.aquire().create_property(&"hallo", Box::new(value));
+        assert!(target.aquire().create_property(&"hallo", Box::new(value)).is_ok());
     }
 
     #[test]

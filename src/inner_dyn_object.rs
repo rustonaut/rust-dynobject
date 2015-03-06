@@ -32,14 +32,14 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     }
     
     //FIXME if already existig init_value is lost (droped)
-    pub fn create_property<T>(&mut self, key: Key, init_value: Box<T>) -> bool 
+    pub fn create_property<T>(&mut self, key: Key, init_value: Box<T>) -> Result<(),Box<T>> 
         where T: Any + 'static  
     {
         if self.data.contains_key(&key) {
-            false
+            Err(init_value)
         } else {
             self.data.insert(key, DynProperty::new(init_value));
-            true
+            Ok( () )
         }
     }
 
@@ -104,7 +104,7 @@ mod test {
     #[test]
     fn after_creating_a_property_should_exist() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
+        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
         assert!(obj.exists_property(&"hallo"));
     }
 
@@ -112,28 +112,28 @@ mod test {
     #[test]
     fn exist_property_with_type_should_return_true_if_property_exists_and_has_given_type() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
+        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
         assert!(obj.exists_property_with_type::<i32>(&"hallo"));
     }
 
     #[test]
     fn exists_property_with_type_should_return_false_if_property_is_undefined() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
+        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
         assert!(!obj.exists_property_with_type::<i32>(&"NOThallo"));
     }
 
     #[test]
     fn exists_property_with_type_should_return_fals_if_the_type_mismatches() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
+        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
         assert!(!obj.exists_property_with_type::<u16>(&"hallo"));
     }
 
     #[test]
     fn create_property_should_return_true_if_key_is_new() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)));
+        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
     }
 
     
@@ -141,8 +141,8 @@ mod test {
     #[test]
     fn create_property_should_return_false_if_key_already_exists() {
         let mut obj = create_dummy();
-        assert!(  obj.create_property("hallo", Box::new(23i32)) );
-        assert!( !obj.create_property("hallo", Box::new(20i32)) );
+        assert!(  obj.create_property("hallo", Box::new(23i32)).is_ok());
+        assert!( !obj.create_property("hallo", Box::new(20i32)).is_ok());
 
     }
 
@@ -157,7 +157,7 @@ mod test {
     #[test]
     fn set_property_should_err_if_property_type_is_wrong() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
+        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
         let res = obj.set_property(&"hallo", Box::new("oh falsch"));
         assert_eq!(res, Err(Box::new("oh falsch")));
     }
@@ -165,7 +165,7 @@ mod test {
     #[test]
     fn set_property_should_return_the_old_value_if_property_exists_and_type_matches() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
+        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
         let res = obj.set_property(&"hallo", Box::new(44i32));
         assert_eq!(res, Ok(Box::new(23i32)));
         //obj["hallo"] expands to obj.index(&"hallo") 
@@ -182,7 +182,7 @@ mod test {
     #[test]
     fn remove_property_should_fail_if_the_type_mismatches() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
+        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
         let res = obj.remove_property::<u16>(&"hallo");
         assert_eq!(res, Err( () ));
         assert!(obj.exists_property(&"hallo"));
@@ -191,7 +191,7 @@ mod test {
     #[test]
     fn remove_property_should_return_the_property_value_if_succesful() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
+        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
         let res = obj.remove_property::<i32>(&"hallo");
         assert_eq!(res, Ok(Box::new(23i32)));
     }
@@ -200,7 +200,7 @@ mod test {
     #[test]
     fn index_should_return_the_property_if_existing() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
+        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
         let ref res = obj["hallo"];
         assert!(res.is_inner_type::<i32>());
         match res.as_ref::<i32>() {
@@ -218,7 +218,7 @@ mod test {
     #[test]
     fn index_should_also_allow_mutable_access() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)) );
+        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
         match obj["hallo"].as_mut::<i32>() {
             Some(ref_val) => {
                 let mut dummy = 23i32;
