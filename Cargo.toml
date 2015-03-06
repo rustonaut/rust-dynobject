@@ -1,5 +1,9 @@
 [package]
 
-name = "DynObject"
+name = "dynobject"
 version = "0.0.1"
-authors = ["Philipp korber <philippkorber@gmail.com>"]
+authors = ["Philipp Korber <philippkorber@gmail.com>"]
+license = "MIT/Apache-2.0"
+description = "Dynamic Objects for Rust"
+repository = "https://github.com/naicode/dyn-object"
+
