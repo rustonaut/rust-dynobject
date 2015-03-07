@@ -47,6 +47,80 @@ pub use inner_dyn_object::InnerDynObject;
 mod dyn_property;
 mod inner_dyn_object;
 
+//guard types, not should be used in boxes?
+//FIXME maybe add the TypeID as parameter to the function call
+//the last bool indikates if the operation normaly would have succeded(true). if so but false is returned
+//it will also fail, even through normaly valide. Use e.g. if succeded == false { panic!("auto
+//panic on failure") }
+type SetPropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type CreatePropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type RemovePropertyGuard<'a ,Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type AccessPropertyGuardRef<'a, Key> = FnMut(&'a InnerDynObject<Key>, &'a Key, bool) -> bool;
+type AccessPropertyGuardMut<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
+
+/// some predefined functions usable as guards
+pub mod guard_helper {
+
+    use super::InnerDynObject;
+    use std::hash::Hash;
+
+    /// nop is a placeholder
+    ///
+    /// # Note
+    /// guards are optional so nop is not realy needed
+    #[allow(unused_variables)]
+    pub fn nop<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        true 
+    }
+    
+    /// a variation of `nop` usable for `AccessPropertyGuardRef`
+    #[allow(unused_variables)]
+    pub fn nop_no_mut<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        true 
+    }
+    
+    /// panics whenever a operation failed
+    ///
+    /// whenever a operation failed and would normaly return a Err this guard will panic
+    #[allow(unused_variables)]
+    pub fn panic_on_fail<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        if succeded == false {
+            panic!("automaicly panicing on failed operation")
+        }
+        true
+    }
+
+    /// a `panic_on_fail` (helper function) variation for `AccessPropertyGuardRef`
+    #[allow(unused_variables)]
+    pub fn panic_on_fail_no_mut<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        if succeded == false {
+            panic!("automaicly panicing on failed operation")
+        }
+        true
+    }
+
+    /// this guard prevent operations from succeding
+    ///
+    /// this guard will prevent any operation from succeding. By setting this guard e.g. for
+    /// Set, AccessMut, Create and Remove a DynObject can be locked, meaning behaves like
+    /// immutable even when having a mutable reference. Like with all guards this can
+    /// lead to unexpected behaviour
+    #[allow(unused_variables)]
+    pub fn lock<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+        where Key: Eq + Hash
+    {   
+        false
+    }
+
+}
 
 pub struct DynObject<Key> {
     inner: Rc<RefCell<InnerDynObject<Key>>>
@@ -65,11 +139,36 @@ impl<Key> DynObject<Key> where Key: Eq+Hash {
         let x =  InnerDynObject::<Key>::new();
         let cell = RefCell::new(x);
         let rc = Rc::new(cell);
-        DynObject {
-            inner: rc
-        }
+        let weak_ref = rc.downgrade();
+        rc.borrow_mut().set_uplink(weak_ref);
+        DynObject { inner: rc }
     }
     
+    /// create a DynObject from a reference to a InnerDynObject 
+    ///
+    /// This InnerDynObject has have a uplink, witch is the case if it origins in
+    /// another DynObject instance. From then on both instances will share the same
+    /// InnerDynObject
+    ///
+    /// # Panics
+    /// if the uplink is not set or invalide
+    /// 
+    pub fn create_from<'a, T>(innerdyn: &'a InnerDynObject<T>) -> DynObject<T>
+        where T: Eq + Hash
+    {
+        match innerdyn.get_uplink() {
+            &Some(ref weak) => {
+                match weak.upgrade() {
+                    Some(full_rc) => DynObject {
+                        inner: full_rc
+                    },
+                    None => panic!("refered InnerDynObject was a zomby")
+                }
+            },
+            &None => panic!("refered InnerInnerDynObject was not created by a DynObject") 
+        }
+    }
+
     /// aquire the DynObject to perform operations on it
     ///
     /// # Panics
@@ -144,5 +243,34 @@ mod test_dyn_object {
             Some(data) => assert_eq!(data, &value),
             None => panic!("type mismatch, error in test or other class")
         }
+    }
+
+    #[test]
+    #[should_fail]
+    fn create_from_should_panic_if_no_uplink_exists() {
+        use super::InnerDynObject;
+        let obj = InnerDynObject::<&'static str>::new();
+        DynObject::<&'static str>::create_from(&obj);
+    }
+
+    #[test]
+    fn create_from_should_work_with_a_valid_reference() {
+        let mut obj = create_dummy();
+        let obj_ref = obj.aquire();
+        let obj2 = DynObject::<&'static str>::create_from(&obj_ref);
+        //no panic -> ok
+    }
+
+    #[test]
+    fn instances_created_with_create_from_should_share_state() {
+        let mut obj = create_dummy();
+        let mut obj2 = {
+            let mut obj_ref = obj.aquire();
+            let res = DynObject::<&'static str>::create_from(&obj_ref);
+            obj_ref.create_property("hallo", Box::new(22i32));
+            res
+        };
+        let obj2_ref = obj2.aquire();
+        assert!(obj2_ref.exists_property(&"hallo"));
     }
 }
