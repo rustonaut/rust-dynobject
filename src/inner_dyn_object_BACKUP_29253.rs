@@ -53,6 +53,7 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
         }
     }
 
+<<<<<<< HEAD
     /// returns the uplink of this class
     ///
     /// this methode should mainly be used by DynObject if
@@ -62,6 +63,7 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     }
 
 
+=======
     /// sets the property defined by key
     ///
     /// If the property identified by key exists and the property has the type given by
@@ -75,6 +77,7 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     /// 
     #[unstable(reason="redundant, might be removed")]
     #[inline]
+>>>>>>> master
     pub fn set_property<T>(&mut self, key: &Key, value: Box<T>) -> Result<Box<T>,Box<T>> 
         where T: Any + 'static 
     {

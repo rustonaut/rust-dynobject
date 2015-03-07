@@ -3,91 +3,35 @@ use std::ops::{Index, IndexMut};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::any::Any;
-use std::rc::Weak;
-use std::cell::RefCell;
 
 //import and reexport dyn_property
 use super::dyn_property::DynProperty;
+
 
 pub struct InnerDynObject<Key> {
     //initialise this allways with DynProperty::undefined();
     //FIXME move this as assoziated Konstant (with unsave) or static
     undefined_property: DynProperty,
-    data: HashMap<Key, DynProperty>,
-    
-    //this is a SHARED! weak reference to itself, it can be used
-    //to create a DynObject instance from a InnerDynObject instance
-    uplink: Option<Weak<RefCell<InnerDynObject<Key>>>>
+    data: HashMap<Key, DynProperty>
 }
 
-/// The inner part of DynamicObject witch contains the data
-///
-/// This Trait provids a way to create, add, remove and
-/// modify typed propertys defined by a given Key
-///
+
 impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     
-    /// Creates a new empty InnerDynObject
-    ///
     pub fn new() -> InnerDynObject<Key> {
         InnerDynObject {
             undefined_property: DynProperty::undefined(),
-            data: HashMap::<Key, DynProperty>::new(),
-            uplink: None
-        }
-    }
-    
-    //TODO think about making set/get uplink unsafe to show it (only logicaly existing)
-    //unsafeness, neverless it is not unsafe in the rust-lang unsafe sense
-    /// sets the uplink of this calls
-    ///
-    /// this methode should mainly be used by DynObject if
-    /// you are not sure why it is there don't touch it
-    ///
-    /// # Panics
-    /// if the uplink is already set calling this methode will panic
-    pub fn set_uplink(&mut self, uplink: Weak<RefCell<InnerDynObject<Key>>>) {
-        match self.uplink {
-            Some(_) => panic!("uplink was already set"),
-            None => self.uplink = Some(uplink)
+            data: HashMap::<Key, DynProperty>::new()
         }
     }
 
-    /// returns the uplink of this class
-    ///
-    /// this methode should mainly be used by DynObject if
-    /// you are not sure why it is there don't touch it
-    pub fn get_uplink(&self) -> &Option<Weak<RefCell<InnerDynObject<Key>>>> {
-        &self.uplink
-    }
-
-
-    /// sets the property defined by key
-    ///
-    /// If the property identified by key exists and the property has the type given by
-    /// `T` this methode will set the value as new value and will return the old value
-    /// as Ok(Box(T)). If the property does not exists or the type is wrong the passed
-    /// value will be returned as Err(Box(T))
-    ///
-    /// This is mostly equivalent to using  `inner_dyn_object[key].set(value)`
-    ///
-    /// # Example
-    /// 
-    #[unstable(reason="redundant, might be removed")]
-    #[inline]
     pub fn set_property<T>(&mut self, key: &Key, value: Box<T>) -> Result<Box<T>,Box<T>> 
         where T: Any + 'static 
     {
         self.index_mut(key).set(value)
     }
     
-    /// create a new property with a initial value
-    ///
-    /// Creaates a new property with given key and `initial_value setting` the type of
-    /// the property to the type of `initial_value`. If the property already exists
-    /// the given initialvalue will be returned as `Err(Box(T))` else `Ok( () )` will
-    /// be returned.
-    ///
+    //FIXME if already existig init_value is lost (droped)
     pub fn create_property<T>(&mut self, key: Key, init_value: Box<T>) -> Result<(),Box<T>> 
         where T: Any + 'static  
     {
@@ -98,15 +42,7 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
             Ok( () )
         }
     }
-    
-    /// removes a given property returning the old value of it
-    ///
-    /// If the property exists and the type match the old
-    /// value will eb returned wraped in a Ok-Result and the
-    /// property is removed. Else the property won't be changed
-    /// and `Err( () )`. If you e.g. try to remove a given property
-    /// not the using the right type the property will NOT be removed.
-    ///
+
     pub fn remove_property<T>(&mut self, key: &Key) -> Result<Box<T>, ()> 
         where T: Any + 'static
     {
@@ -116,30 +52,21 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
         Ok(self.data.remove(key).unwrap().destruct::<T>().unwrap())
     }
 
-    /// returns true if a given property exists
     pub fn exists_property(&self, key: &Key) -> bool {
         self.data.contains_key(key)
     }
 
-    /// returns true if a given property exists and has the given type
     pub fn exists_property_with_type<T>(&self, key: &Key) -> bool 
         where T: Any + 'static 
     {
         self.index(key).is_inner_type::<T>()
     }
-
-    //TODO add remove_typeles to remove without knowing the type returning Box<Any>
 }
 
 impl<Key: Hash+Eq> Index<Key> for InnerDynObject<Key> {
     type Output = DynProperty;
  
-    /// return a reference to a `DynProperty` for a given key
-    ///
-    /// If the key exists in this `InnerDynObject` a reference to
-    /// the associated property will be returned. If not a reference to
-    /// a property with the inner type `UndefinedProperty` will be returned.
-    ///
+    //if there is no matching Key return a DynProperty of UndefinedPropertyType
     fn index<'a>(&'a self, index: &Key) -> &'a DynProperty {
         match self.data.get(index) {
             Some(data) => data,
@@ -150,16 +77,6 @@ impl<Key: Hash+Eq> Index<Key> for InnerDynObject<Key> {
 
 impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
 
-
-    /// return a mutable referenc to a `DynProperty` for a given key
-    ///
-    /// If the key exists in this `InnerDynObject` a reference to
-    /// the associated property will be returned. If not a reference to
-    /// a property with the inner type `UndefinedProperty` will be returned.
-    ///
-    /// Note: that it is not a problem to return a mutable reference to a UndefinedProperty
-    /// because UndefinedProperty is a zero sized type and therfor has only one representation.
-    ///
     fn index_mut<'a>(&'a mut self, index: &Key) -> &'a mut DynProperty {
         match self.data.get_mut(index) {
             Some(data) => data,

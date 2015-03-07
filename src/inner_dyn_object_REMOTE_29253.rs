@@ -3,21 +3,16 @@ use std::ops::{Index, IndexMut};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::any::Any;
-use std::rc::Weak;
-use std::cell::RefCell;
 
 //import and reexport dyn_property
 use super::dyn_property::DynProperty;
+
 
 pub struct InnerDynObject<Key> {
     //initialise this allways with DynProperty::undefined();
     //FIXME move this as assoziated Konstant (with unsave) or static
     undefined_property: DynProperty,
-    data: HashMap<Key, DynProperty>,
-    
-    //this is a SHARED! weak reference to itself, it can be used
-    //to create a DynObject instance from a InnerDynObject instance
-    uplink: Option<Weak<RefCell<InnerDynObject<Key>>>>
+    data: HashMap<Key, DynProperty>
 }
 
 /// The inner part of DynamicObject witch contains the data
@@ -32,35 +27,9 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     pub fn new() -> InnerDynObject<Key> {
         InnerDynObject {
             undefined_property: DynProperty::undefined(),
-            data: HashMap::<Key, DynProperty>::new(),
-            uplink: None
+            data: HashMap::<Key, DynProperty>::new()
         }
     }
-    
-    //TODO think about making set/get uplink unsafe to show it (only logicaly existing)
-    //unsafeness, neverless it is not unsafe in the rust-lang unsafe sense
-    /// sets the uplink of this calls
-    ///
-    /// this methode should mainly be used by DynObject if
-    /// you are not sure why it is there don't touch it
-    ///
-    /// # Panics
-    /// if the uplink is already set calling this methode will panic
-    pub fn set_uplink(&mut self, uplink: Weak<RefCell<InnerDynObject<Key>>>) {
-        match self.uplink {
-            Some(_) => panic!("uplink was already set"),
-            None => self.uplink = Some(uplink)
-        }
-    }
-
-    /// returns the uplink of this class
-    ///
-    /// this methode should mainly be used by DynObject if
-    /// you are not sure why it is there don't touch it
-    pub fn get_uplink(&self) -> &Option<Weak<RefCell<InnerDynObject<Key>>>> {
-        &self.uplink
-    }
-
 
     /// sets the property defined by key
     ///
