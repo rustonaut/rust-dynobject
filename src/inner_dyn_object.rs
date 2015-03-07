@@ -9,6 +9,18 @@ use std::cell::RefCell;
 //import and reexport dyn_property
 use super::dyn_property::DynProperty;
 
+//guard types, not should be used in boxes?
+//FIXME maybe add the TypeID as parameter to the function call
+//the last bool indikates if the operation normaly would have succeded(true). if so but false is returned
+//it will also fail, even through normaly valide. Use e.g. if succeded == false { panic!("auto
+//panic on failure") }
+type SetPropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type CreatePropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type RemovePropertyGuard<'a ,Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type AccessPropertyGuardRef<'a, Key> = FnMut(&'a InnerDynObject<Key>, &'a Key, bool) -> bool;
+type AccessPropertyGuardMut<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
+
+
 pub struct InnerDynObject<Key> {
     //initialise this allways with DynProperty::undefined();
     //FIXME move this as assoziated Konstant (with unsave) or static

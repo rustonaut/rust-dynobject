@@ -32,6 +32,13 @@ pub use dyn_property::DynProperty;
 pub use dyn_property::UndefinedProperty;
 pub use inner_dyn_object::InnerDynObject;
 
+pub use inner_dyn_object::SetPropertyGuard;
+pub use inner_dyn_object::CreatePropertyGuard;
+pub use inner_dyn_object::RemovePropertyGuard;
+pub use inner_dyn_object::AccessPropertyGuardRef;
+pub use inner_dyn_object::AccessPropertyGuardMut;
+
+
 ///! 
 ///! InnerDynObject is a kind of dynamic object witch allows
 ///! creating and deleting properties at runtime.
@@ -47,16 +54,6 @@ pub use inner_dyn_object::InnerDynObject;
 mod dyn_property;
 mod inner_dyn_object;
 
-//guard types, not should be used in boxes?
-//FIXME maybe add the TypeID as parameter to the function call
-//the last bool indikates if the operation normaly would have succeded(true). if so but false is returned
-//it will also fail, even through normaly valide. Use e.g. if succeded == false { panic!("auto
-//panic on failure") }
-type SetPropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
-type CreatePropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
-type RemovePropertyGuard<'a ,Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
-type AccessPropertyGuardRef<'a, Key> = FnMut(&'a InnerDynObject<Key>, &'a Key, bool) -> bool;
-type AccessPropertyGuardMut<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
 
 /// some predefined functions usable as guards
 pub mod guard_helper {
@@ -267,7 +264,7 @@ mod test_dyn_object {
         let mut obj2 = {
             let mut obj_ref = obj.aquire();
             let res = DynObject::<&'static str>::create_from(&obj_ref);
-            obj_ref.create_property("hallo", Box::new(22i32));
+            assert!(obj_ref.create_property("hallo", Box::new(22i32)).is_ok());
             res
         };
         let obj2_ref = obj2.aquire();
