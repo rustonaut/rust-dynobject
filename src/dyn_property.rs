@@ -3,14 +3,28 @@ use std::mem;
 use std::any::Any;
 use std::boxed::BoxAny;
 
+//TODO move UndefinedProperty incl. ::undefined() to upper level
 pub struct UndefinedProperty;
 
 pub struct DynProperty {
     value: Box<Any+'static>
 }
 
+/// The `DynProperty` is a Wrapper around `Box<Any>` 
+///
+/// `DynProperty` provides methodes a saftily access the 
+/// inner `Any` Data over typed generic methodes makign 
+/// the inner implementation around `Any` complety transparent
+///
+/// Note that a `DynProperty` has allways the same inner time 
+/// after creation. E.g. if it is initialised with a `Vec<i32>`
+/// it will allways contains a `Vec<i32>` until destructed
+///
+///
 impl DynProperty {
 
+    /// creats a new DynProperty with given initial value
+    ///
     pub fn new<T: Any>(initial_value: Box<T>) -> DynProperty {
         DynProperty { value: initial_value }
     }
@@ -22,7 +36,29 @@ impl DynProperty {
         DynProperty::new(irrelevant_box)
     }
 
-    //set new return old or None if type mismatch
+    /// replaces the current inner value with a new one
+    ///
+    /// This methodes checks if the given new vale has the same type
+    /// then the current value if so it will replace the current value
+    /// with the new value and return the now old value as `Ok(Box(T))`.
+    /// If this fails it will return the new value as `Err(Box(T))` so
+    /// that it will not be lose.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use dynobject::DynProperty;
+    /// let mut prop = DynProperty::new(Box::new(123i32));
+    /// match prop.set(Box::new(321i32)) {
+    ///     Ok(old) => assert_eq!(*old, 123i32),
+    ///     Err(value) => panic!("wont happen here")
+    /// }
+    /// match prop.set(Box::new("hallo")) {
+    ///     Ok(old) => panic!("wont happen, given data has a  different type"),
+    ///     Err(data) => assert_eq!(*data, "hallo")
+    /// }
+    /// ```
+    ///
     pub fn set<T>(&mut self, value: Box<T>) -> Result<Box<T>,Box<T>> 
         where T: Any+'static
     {
@@ -36,18 +72,62 @@ impl DynProperty {
             
     }
 
-    pub fn as_ref<'a, T: Any + 'static>(&'a self) -> Option<&'a T> {
+    /// return a referenc to the inner Data if possible 
+    ///
+    /// If the given type is the same as the inner type 
+    /// return a reference to the inner data (typed) wrapped
+    /// into Some, else return None
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use dynobject::DynProperty;
+    /// let proto = DynProperty::new(Box::new(1234i32));
+    /// match proto.as_ref::<i32>() {
+    ///     Some(num_ref) => println!("content {}", num_ref),
+    ///     None => panic!("failed, but should not have")
+    /// }
+    /// ```
+    ///
+    pub fn as_ref<'a, T>(&'a self) -> Option<&'a T> 
+        where T: Any + 'static 
+    {
         self.value.downcast_ref()
     }
 
+    /// return a mutable reference to the inner data if possible
+    ///
+    /// If the given type is the same as the inner type
+    /// return a typed mutable reference to the inner data wrapped
+    /// into Some. If not valide return None
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// # use dynobject::DynProperty;
+    /// let mut proto = DynProperty::new(Box::new("hal".to_string()));
+    /// proto.as_mut::<String>().unwrap().push_str("lo");
+    /// println!("value {}", proto.as_ref::<String>().unwrap());
+    /// ```
+    ///
     pub fn as_mut<'a, T: Any>(&'a mut self) -> Option<&'a mut T> {
         self.value.downcast_mut::<T>()
     }
     
+    /// return true if the given type matches the inner type
+    ///
     pub fn is_inner_type<T:Any>(&self) -> bool {
         self.value.is::<T>()
     }
 
+    /// consumes this instance returning the inner data 
+    ///
+    /// Calling destruct will consum this instance if the given type
+    /// matches the inner type Some(Box(T)) will be returned. If
+    /// the type des not match this instance WILL STILL BE CONSUMED
+    /// and the inernal data will be droped running the constreucktor(s) if
+    /// existing
+    ///
     pub fn destruct<T:Any>(self) -> Option<Box<T>> where T: 'static {
         if self.is_inner_type::<T>() {
             Some(self.value.downcast::<T>().unwrap())

@@ -55,10 +55,14 @@ pub struct DynObject<Key> {
 
 impl<Key> DynObject<Key> where Key: Eq+Hash {
 
-    pub fn new<T>() -> DynObject<T>
-        where T: Eq + Hash
-    {
-        let x =  InnerDynObject::<T>::new();
+    /// create a new empty DynObject with Key Type `Key`
+    ///
+    /// Note automatic detection of the type will not
+    /// allways work. It is best to use 
+    /// `DynObject::<KeyType>::new()
+    ///
+    pub fn new() -> DynObject<Key> {
+        let x =  InnerDynObject::<Key>::new();
         let cell = RefCell::new(x);
         let rc = Rc::new(cell);
         DynObject {
@@ -69,7 +73,7 @@ impl<Key> DynObject<Key> where Key: Eq+Hash {
     /// aquire the DynObject to perform operations on it
     ///
     /// # Panics
-    /// if someone else aquired it and didn't relase it jet
+    /// panics if someone else aquired it and didn't relase it jet
     /// (by droping the returned RefMut, witch is often done 
     /// implicitly)
     pub fn aquire(&mut self) -> RefMut<InnerDynObject<Key>> {
@@ -79,6 +83,11 @@ impl<Key> DynObject<Key> where Key: Eq+Hash {
 
 impl<T> Clone for DynObject<T> where T: Eq+Hash {
 
+    /// shalow clons `DynObject` saftily sharing the inner `InnerDynbject`
+    ///
+    /// for saftily sharing the inner object Reference Counting and Cells
+    /// with inner mutability. There is a logical protection preventing
+    /// anyone from accessing the inner data when it is currently borrowd.
     fn clone(&self) -> Self {
         DynObject {
             inner: self.inner.clone()
