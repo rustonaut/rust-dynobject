@@ -8,6 +8,15 @@ use std::any::Any;
 use super::dyn_property::DynProperty;
 
 
+/// zero sized type used as "is undefined" marker
+pub struct UndefinedProperty;
+
+pub fn undefined_property() -> DynProperty {
+    //pointer to zero sized Type -> any non zero pointer is ok (test shows it uses 0x1) so no
+    //allocation on heap is done
+    DynProperty::new(Box::new(UndefinedProperty))
+}
+
 pub struct InnerDynObject<Key> {
     //initialise this allways with DynProperty::undefined();
     //FIXME move this as assoziated Konstant (with unsave) or static
@@ -26,7 +35,7 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     ///
     pub fn new() -> InnerDynObject<Key> {
         InnerDynObject {
-            undefined_property: DynProperty::undefined(),
+            undefined_property: undefined_property(),
             data: HashMap::<Key, DynProperty>::new()
         }
     }
@@ -140,8 +149,9 @@ impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
 #[cfg(test)]
 mod test {
     use super::InnerDynObject;
-    use super::super::UndefinedProperty;
-    
+    use super::UndefinedProperty;
+    use super::undefined_property;
+
     fn create_dummy() -> InnerDynObject<&'static str> {
         InnerDynObject::<&'static str>::new()
     }
@@ -278,5 +288,11 @@ mod test {
             }
             None => panic!("expected to be borrowable in this situration")
         }   
+    }
+    
+    #[test]
+    fn undefined_property_should_return_a_property_of_the_undefined_property_type() {
+        let x = undefined_property();
+        assert!(x.is_inner_type::<UndefinedProperty>());
     }
 }

@@ -3,8 +3,6 @@ use std::mem;
 use std::any::Any;
 use std::boxed::BoxAny;
 
-//TODO move UndefinedProperty incl. ::undefined() to upper level
-pub struct UndefinedProperty;
 
 pub struct DynProperty {
     value: Box<Any+'static>
@@ -29,12 +27,6 @@ impl DynProperty {
         DynProperty { value: initial_value }
     }
     
-    pub fn undefined() -> DynProperty {
-        //pointer to zero sized Type -> any non zero pointer is ok (test shows it uses 0x1) so no
-        //allocation on heap is done
-        let irrelevant_box = Box::new(UndefinedProperty);
-        DynProperty::new(irrelevant_box)
-    }
 
     /// replaces the current inner value with a new one
     ///
@@ -140,7 +132,6 @@ impl DynProperty {
 #[cfg(test)]
 mod test {
     use super::DynProperty;
-    use super::UndefinedProperty;
 
     //a simple data Type
     #[derive(Eq, PartialEq, Debug)]
@@ -252,10 +243,5 @@ mod test {
         assert_eq!(res, Err(Box::new(Point3D(1,1,1))));    
     }
 
-    #[test]
-    fn undefined_should_return_a_property_of_the_undefined_property_type() {
-        let x = DynProperty::undefined();
-        assert!(x.is_inner_type::<UndefinedProperty>());
-    }
 
 }
