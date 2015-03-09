@@ -29,14 +29,14 @@ use std::hash::Hash;
 
 //import and reexport dyn_property
 pub use dyn_property::DynProperty;
-pub use dyn_property::UndefinedProperty;
+pub use inner_dyn_object::UndefinedProperty;
 pub use inner_dyn_object::InnerDynObject;
 
 pub use inner_dyn_object::SetPropertyGuard;
 pub use inner_dyn_object::CreatePropertyGuard;
 pub use inner_dyn_object::RemovePropertyGuard;
-pub use inner_dyn_object::AccessPropertyGuardRef;
-pub use inner_dyn_object::AccessPropertyGuardMut;
+pub use inner_dyn_object::AccessRefPropertyGuard;
+pub use inner_dyn_object::AccessMutPropertyGuard;
 
 
 ///! 

@@ -9,6 +9,27 @@ use std::cell::RefCell;
 //import and reexport dyn_property
 use super::dyn_property::DynProperty;
 
+//guard types, not should be used in boxes?
+//FIXME maybe add the TypeID as parameter to the function call
+//the last bool indikates if the operation normaly would have succeded(true). if so but false is returned
+//it will also fail, even through normaly valide. Use e.g. if succeded == false { panic!("auto
+//panic on failure") }
+type SetPropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type CreatePropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type RemovePropertyGuard<'a ,Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
+type AccessPropertyGuardRef<'a, Key> = FnMut(&'a InnerDynObject<Key>, &'a Key, bool) -> bool;
+type AccessPropertyGuardMut<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
+
+
+/// zero sized type used as "is undefined" marker
+pub struct UndefinedProperty;
+
+pub fn undefined_property() -> DynProperty {
+    //pointer to zero sized Type -> any non zero pointer is ok (test shows it uses 0x1) so no
+    //allocation on heap is done
+    DynProperty::new(Box::new(UndefinedProperty))
+}
+
 pub struct InnerDynObject<Key> {
     //initialise this allways with DynProperty::undefined();
     //FIXME move this as assoziated Konstant (with unsave) or static
@@ -31,9 +52,14 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     ///
     pub fn new() -> InnerDynObject<Key> {
         InnerDynObject {
+<<<<<<< HEAD
             undefined_property: DynProperty::undefined(),
             data: HashMap::<Key, DynProperty>::new(),
             uplink: None
+=======
+            undefined_property: undefined_property(),
+            data: HashMap::<Key, DynProperty>::new()
+>>>>>>> master
         }
     }
     
@@ -53,7 +79,6 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
         }
     }
 
-<<<<<<< HEAD
     /// returns the uplink of this class
     ///
     /// this methode should mainly be used by DynObject if
@@ -63,7 +88,6 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     }
 
 
-=======
     /// sets the property defined by key
     ///
     /// If the property identified by key exists and the property has the type given by
@@ -77,7 +101,6 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     /// 
     #[unstable(reason="redundant, might be removed")]
     #[inline]
->>>>>>> master
     pub fn set_property<T>(&mut self, key: &Key, value: Box<T>) -> Result<Box<T>,Box<T>> 
         where T: Any + 'static 
     {
@@ -174,8 +197,9 @@ impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
 #[cfg(test)]
 mod test {
     use super::InnerDynObject;
-    use super::super::UndefinedProperty;
-    
+    use super::UndefinedProperty;
+    use super::undefined_property;
+
     fn create_dummy() -> InnerDynObject<&'static str> {
         InnerDynObject::<&'static str>::new()
     }
@@ -312,5 +336,11 @@ mod test {
             }
             None => panic!("expected to be borrowable in this situration")
         }   
+    }
+    
+    #[test]
+    fn undefined_property_should_return_a_property_of_the_undefined_property_type() {
+        let x = undefined_property();
+        assert!(x.is_inner_type::<UndefinedProperty>());
     }
 }

@@ -14,12 +14,21 @@ use super::dyn_property::DynProperty;
 //the last bool indikates if the operation normaly would have succeded(true). if so but false is returned
 //it will also fail, even through normaly valide. Use e.g. if succeded == false { panic!("auto
 //panic on failure") }
-type SetPropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
-type CreatePropertyGuard<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
-type RemovePropertyGuard<'a ,Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key, bool) -> bool;
-type AccessPropertyGuardRef<'a, Key> = FnMut(&'a InnerDynObject<Key>, &'a Key, bool) -> bool;
-type AccessPropertyGuardMut<'a, Key> = FnMut(&'a mut InnerDynObject<Key>, &'a Key) -> bool;
+pub type SetPropertyGuard<Key> = FnMut(&mut InnerDynObject<Key>, &Key, bool) -> bool;
+pub type CreatePropertyGuard<Key> = FnMut(&mut InnerDynObject<Key>, & Key, bool) -> bool;
+pub type RemovePropertyGuard<Key> = FnMut(&mut InnerDynObject<Key>, & Key, bool) -> bool;
+pub type AccessRefPropertyGuard<Key> = FnMut(&InnerDynObject<Key>, & Key, bool) -> bool;
+pub type AccessMutPropertyGuard<Key> = FnMut(&mut InnerDynObject<Key>, &Key) -> bool;
 
+
+/// zero sized type used as "is undefined" marker
+pub struct UndefinedProperty;
+
+pub fn undefined_property() -> DynProperty {
+    //pointer to zero sized Type -> any non zero pointer is ok (test shows it uses 0x1) so no
+    //allocation on heap is done
+    DynProperty::new(Box::new(UndefinedProperty))
+}
 
 pub struct InnerDynObject<Key> {
     //initialise this allways with DynProperty::undefined();
@@ -29,7 +38,14 @@ pub struct InnerDynObject<Key> {
     
     //this is a SHARED! weak reference to itself, it can be used
     //to create a DynObject instance from a InnerDynObject instance
-    uplink: Option<Weak<RefCell<InnerDynObject<Key>>>>
+    uplink: Option<Weak<RefCell<InnerDynObject<Key>>>>,
+
+    set_guard: Option<Box<SetPropertyGuard<Key>>>,
+    create_guard: Option<Box<CreatePropertyGuard<Key>>>,
+    remove_guard: Option<Box<RemovePropertyGuard<Key>>>,
+    access_ref_guard: Option<Box<AccessRefPropertyGuard<Key>>>,
+    access_mut_guard: Option<Box<AccessMutPropertyGuard<Key>>>
+
 }
 
 /// The inner part of DynamicObject witch contains the data
@@ -43,9 +59,14 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     ///
     pub fn new() -> InnerDynObject<Key> {
         InnerDynObject {
-            undefined_property: DynProperty::undefined(),
+            undefined_property: undefined_property(),
             data: HashMap::<Key, DynProperty>::new(),
-            uplink: None
+            uplink: None,
+            set_guard: None,
+            create_guard: None,
+            remove_guard: None,
+            access_ref_guard: None,
+            access_mut_guard: None
         }
     }
     
@@ -183,8 +204,9 @@ impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
 #[cfg(test)]
 mod test {
     use super::InnerDynObject;
-    use super::super::UndefinedProperty;
-    
+    use super::UndefinedProperty;
+    use super::undefined_property;
+
     fn create_dummy() -> InnerDynObject<&'static str> {
         InnerDynObject::<&'static str>::new()
     }
@@ -321,5 +343,11 @@ mod test {
             }
             None => panic!("expected to be borrowable in this situration")
         }   
+    }
+    
+    #[test]
+    fn undefined_property_should_return_a_property_of_the_undefined_property_type() {
+        let x = undefined_property();
+        assert!(x.is_inner_type::<UndefinedProperty>());
     }
 }

@@ -6,4 +6,3 @@ authors = ["Philipp Korber <philippkorber@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "Dynamic Objects for Rust"
 repository = "https://github.com/naicode/dyn-object"
-
