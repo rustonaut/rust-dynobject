@@ -12,29 +12,29 @@ use super::dyn_property::DynProperty;
 
 //guard types, not should be used in boxes?
 //FIXME maybe add the TypeID as parameter to the function call
-//the last bool indikates if the operation normaly would have succeded(true). if so but false is returned
+//the last bool indikates if the operation normaly would have succeded(true ). if so but false is returned
 //it will also fail, even through normaly valide. Use e.g. if succeded == false { panic!("auto
-//panic on failure") }
+//panic on failure" ) }
 //ATENTION! the passed InnerDynObject can! be manipulated by creating a DynObject form it and then
 //borrowing it mutable, this is not intended to be used but not a bug in itself!
-pub type CreatePropertyGuard<Key> = Box<FnMut(&InnerDynObject<Key>, &Key, bool) -> bool>;
-pub type RemovePropertyGuard<Key> = Box<FnMut(&InnerDynObject<Key>, &Key, bool) -> bool>;
-pub type AccessRefPropertyGuard<Key> = Box<FnMut(&InnerDynObject<Key>, &Key, bool) -> bool>;
-pub type AccessMutPropertyGuard<Key> = Box<FnMut(&InnerDynObject<Key>, &Key, bool) -> bool>;
+pub type CreatePropertyGuard<Key> = Box<FnMut( &InnerDynObject<Key>, &Key, bool ) -> bool>;
+pub type RemovePropertyGuard<Key> = Box<FnMut( &InnerDynObject<Key>, &Key, bool ) -> bool>;
+pub type AccessRefPropertyGuard<Key> = Box<Fn( &InnerDynObject<Key>, &Key, bool ) -> bool>;
+pub type AccessMutPropertyGuard<Key> = Box<FnMut( &InnerDynObject<Key>, &Key, bool ) -> bool>;
 
 
 /// zero sized type used as "is undefined" marker
 pub struct UndefinedProperty;
 
 pub fn undefined_property() -> DynProperty {
-    //pointer to zero sized Type -> any non zero pointer is ok (test shows it uses 0x1) so no
+    //pointer to zero sized Type -> any non zero pointer is ok ( test shows it uses 0x1 ) so no
     //allocation on heap is done
-    DynProperty::new(Box::new(UndefinedProperty))
+    DynProperty::new( Box::new( UndefinedProperty ))
 }
 
 pub struct InnerDynObject<Key> {
     //initialise this allways with DynProperty::undefined();
-    //FIXME move this as assoziated Konstant (with unsave) or static
+    //FIXME move this as assoziated Konstant ( with unsave ) or static
     undefined_property: DynProperty,
     data: HashMap<Key, DynProperty>,
     
@@ -70,12 +70,28 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
         }
     }
     
-    fn set_creation_guard(&mut self, mut guard: Option<CreatePropertyGuard<Key>>) -> Option<CreatePropertyGuard<Key>> {
-        mem::swap(&mut self.create_guard,&mut guard);
+    pub fn set_creation_guard( &mut self, mut guard: Option<CreatePropertyGuard<Key>> ) -> Option<CreatePropertyGuard<Key>> {
+        mem::swap( &mut self.create_guard, &mut guard );
+        guard
+    }
+    
+    pub fn set_remove_guard( &mut self, mut guard: Option<RemovePropertyGuard<Key>> ) -> Option<RemovePropertyGuard<Key>> {
+        mem::swap( &mut self.remove_guard, &mut guard );
         guard
     }
 
-    //TODO think about making set/get uplink unsafe to show it (only logicaly existing)
+    pub fn set_access_mut_guard( &mut self, mut guard: Option<AccessMutPropertyGuard<Key>> ) -> Option<AccessMutPropertyGuard<Key>> {
+        mem::swap( &mut self.access_mut_guard, &mut guard );
+        guard
+    }
+
+    pub fn set_access_ref_guard( &mut self, mut guard: Option<AccessRefPropertyGuard<Key>> ) -> Option<AccessRefPropertyGuard<Key>> {
+        mem::swap( &mut self.access_ref_guard, &mut guard );
+        guard
+    }
+
+
+    //TODO think about making set/get uplink unsafe to show it ( only logicaly existing )
     //unsafeness, neverless it is not unsafe in the rust-lang unsafe sense
     /// sets the uplink of this calls
     ///
@@ -84,10 +100,10 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     ///
     /// # Panics
     /// if the uplink is already set calling this methode will panic
-    pub fn set_uplink(&mut self, uplink: Weak<RefCell<InnerDynObject<Key>>>) {
+    pub fn set_uplink( &mut self, uplink: Weak<RefCell<InnerDynObject<Key>>> ) {
         match self.uplink {
-            Some(_) => panic!("uplink was already set"),
-            None => self.uplink = Some(uplink)
+            Some( _ ) => panic!( "uplink was already set" ),
+            None => self.uplink = Some( uplink )
         }
     }
 
@@ -95,7 +111,7 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     ///
     /// this methode should mainly be used by DynObject if
     /// you are not sure why it is there don't touch it
-    pub fn get_uplink(&self) -> &Option<Weak<RefCell<InnerDynObject<Key>>>> {
+    pub fn get_uplink( &self ) -> &Option<Weak<RefCell<InnerDynObject<Key>>>> {
         &self.uplink
     }
 
@@ -104,51 +120,53 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     ///
     /// If the property identified by key exists and the property has the type given by
     /// `T` this methode will set the value as new value and will return the old value
-    /// as Ok(Box(T)). If the property does not exists or the type is wrong the passed
-    /// value will be returned as Err(Box(T))
+    /// as Ok( Box( T )). If the property does not exists or the type is wrong the passed
+    /// value will be returned as Err( Box( T ))
     ///
-    /// This is mostly equivalent to using  `inner_dyn_object[key].set(value)`
+    /// This is mostly equivalent to using  `inner_dyn_object[key].set( value )`
     ///
     /// # Example
     /// 
-    #[unstable(reason="redundant, might be removed")]
+    #[unstable( reason="redundant, might be removed" )]
     #[inline]
-    pub fn set_property<T>(&mut self, key: &Key, value: Box<T>) -> Result<Box<T>,Box<T>> 
+    pub fn set_property<T>( &mut self, key: &Key, value: Box<T> ) -> Result<Box<T>,Box<T>> 
         where T: Any + 'static 
     {
-        self.index_mut(key).set(value)
+        self.index_mut( key ).set( value )
     }
     
     /// create a new property with a initial value
     ///
     /// Creaates a new property with given key and `initial_value setting` the type of
     /// the property to the type of `initial_value`. If the property already exists
-    /// the given initialvalue will be returned as `Err(Box(T))` else `Ok( () )` will
+    /// the given initialvalue will be returned as `Err( Box( T ))` else `Ok( () )` will
     /// be returned.
     ///
-    pub fn create_property<T>(&mut self, key: Key, init_value: Box<T>) -> Result<(),Box<T>> 
+    pub fn create_property<T>( &mut self, key: Key, init_value: Box<T> ) -> Result<(),Box<T>> 
         where T: Any + 'static  
     {
-        let mut guard_fn: Option<CreatePropertyGuard<Key>> = None;
+        let mut ok = !self.data.contains_key( &key );
 
-        //TODO MAKE MACRO OR FN TO PREVENT ERRORS
-        //have to move guard_dn out and back in, else we would borrow self mutable twice (once
-        //because it is FnMut twice because we also pass &mut self as parameter)
-        mem::swap(&mut guard_fn, &mut self.create_guard);
-        let mut ok = !self.data.contains_key(&key);
-        if guard_fn.is_some() {
-            //FIXME BUG, if guad_fn adds somthing with the given key,
-            //it will be imediatly overriden... maybe change th passed reference
-            //to &self instead of &mut self
-            ok &= guard_fn.as_mut().unwrap()(self, &key, ok);
+        {
+            //TODO MAKE MACRO OR FN TO PREVENT ERRORS
+            //have to move guard_dn out and back in, else we would borrow self mutable twice ( once
+            //because it is FnMut twice because we also pass &mut self as parameter )
+            let mut guard_fn: Option<CreatePropertyGuard<Key>> = None;
+            mem::swap( &mut guard_fn, &mut self.create_guard );
+            if guard_fn.is_some() {
+                //FIXME BUG, if guad_fn adds somthing with the given key,
+                //it will be imediatly overriden... maybe change th passed reference
+                //to &self instead of &mut self
+                ok &= guard_fn.as_mut().unwrap()( self, &key, ok );
+            }
+            mem::swap( &mut guard_fn, &mut self.create_guard );
         }
-        mem::swap(&mut guard_fn, &mut self.create_guard);
 
         if ok {
-            self.data.insert(key, DynProperty::new(init_value));
+            self.data.insert( key, DynProperty::new( init_value ));
             Ok( () )
         } else {
-            Err(init_value)
+            Err( init_value )
         }
     }
     
@@ -160,25 +178,37 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     /// and `Err( () )`. If you e.g. try to remove a given property
     /// not the using the right type the property will NOT be removed.
     ///
-    pub fn remove_property<T>(&mut self, key: &Key) -> Result<Box<T>, ()> 
+    pub fn remove_property<T>( &mut self, key: &Key ) -> Result<Box<T>, ()> 
         where T: Any + 'static
     {
-        if !self.index(key).is_inner_type::<T>() {
-            return Err( () );
+        let mut ok = self.index( key ).is_inner_type::<T>();
+        
+        {
+            let mut guard_fn: Option<RemovePropertyGuard<Key>> = None;
+            mem::swap( &mut guard_fn, &mut self.remove_guard );
+            if guard_fn.is_some() {
+                ok &= guard_fn.as_mut().unwrap()( self, &key, ok );
+            }
+            mem::swap( &mut guard_fn, &mut self.remove_guard );
         }
-        Ok(self.data.remove(key).unwrap().destruct::<T>().unwrap())
+
+        if ok {
+            Ok( self.data.remove( key ).unwrap().destruct::<T>().unwrap() )
+        } else {
+            Err( () )
+        }
     }
 
     /// returns true if a given property exists
-    pub fn exists_property(&self, key: &Key) -> bool {
-        self.data.contains_key(key)
+    pub fn exists_property( &self, key: &Key ) -> bool {
+        self.data.contains_key( key )
     }
 
     /// returns true if a given property exists and has the given type
-    pub fn exists_property_with_type<T>(&self, key: &Key) -> bool 
+    pub fn exists_property_with_type<T>( &self, key: &Key ) -> bool 
         where T: Any + 'static 
     {
-        self.index(key).is_inner_type::<T>()
+        self.index( key ).is_inner_type::<T>()
     }
 
     //TODO add remove_typeles to remove without knowing the type returning Box<Any>
@@ -193,11 +223,25 @@ impl<Key: Hash+Eq> Index<Key> for InnerDynObject<Key> {
     /// the associated property will be returned. If not a reference to
     /// a property with the inner type `UndefinedProperty` will be returned.
     ///
-    fn index<'a>(&'a self, index: &Key) -> &'a DynProperty {
-        match self.data.get(index) {
-            Some(data) => data,
-            None => &self.undefined_property
+    fn index<'a>( &'a self, index: &Key ) -> &'a DynProperty {
+        let ( ok, data ) = match self.data.get( index ) {
+            Some( data ) => ( true, data ),
+            None => ( false, &self.undefined_property )
+        };
+
+        let mut ack = true;
+        {
+            let guard_fn = &self.access_ref_guard;
+            if guard_fn.is_some() {
+                ack &= guard_fn.as_ref().unwrap()( self, index, ok );
+            }
         }
+        if ( ack && ok ) || !ok {
+            data
+        } else {
+            &self.undefined_property
+        }
+
     }
 }
 
@@ -213,24 +257,41 @@ impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
     /// Note: that it is not a problem to return a mutable reference to a UndefinedProperty
     /// because UndefinedProperty is a zero sized type and therfor has only one representation.
     ///
-    fn index_mut<'a>(&'a mut self, index: &Key) -> &'a mut DynProperty {
-        match self.data.get_mut(index) {
-            Some(data) => data,
-            None => &mut self.undefined_property
+    fn index_mut<'a>( &'a mut self, index: &Key ) -> &'a mut DynProperty {
+        let ok = self.data.contains_key( index );
+        let mut ack = true;
+        {
+            let mut guard_fn: Option<AccessMutPropertyGuard<Key>> = None;
+            mem::swap( &mut guard_fn, &mut self.access_mut_guard );
+            if guard_fn.is_some() {
+                ack &= guard_fn.as_mut().unwrap()( self, index, ok );
+            }
+            mem::swap( &mut guard_fn, &mut self.access_mut_guard );
+        }
+        if ( ack && ok ) || !ok {
+            match self.data.get_mut( index ) {
+                Some( data ) => data,
+                None => &mut self.undefined_property
+            }
+        } else {
+            &mut self.undefined_property
         }
     }
 }
 
-#[cfg(test)]
+#[cfg( test )]
 mod test {
-    #![allow(unused_variables)]
+    #![allow( unused_variables )]
     type Key = &'static str;
 
     use super::InnerDynObject;
     use super::UndefinedProperty;
     use super::undefined_property;
     use super::CreatePropertyGuard;
-    
+    use super::RemovePropertyGuard;
+    use super::AccessRefPropertyGuard;
+    use super::AccessMutPropertyGuard;
+
     fn create_dummy() -> InnerDynObject<Key> {
         InnerDynObject::<Key>::new()
     }
@@ -238,43 +299,43 @@ mod test {
     #[test]
     fn exist_property_should_return_false_if_inexisting() {
         let obj = create_dummy();
-        assert!( !obj.exists_property(&"hallo") );
+        assert!( !obj.exists_property( &"hallo" ) );
     }
 
 
     #[test]
     fn after_creating_a_property_should_exist() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
-        assert!(obj.exists_property(&"hallo"));
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        assert!( obj.exists_property( &"hallo" ));
     }
 
 
     #[test]
     fn exist_property_with_type_should_return_true_if_property_exists_and_has_given_type() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
-        assert!(obj.exists_property_with_type::<i32>(&"hallo"));
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        assert!( obj.exists_property_with_type::<i32>( &"hallo" ));
     }
 
     #[test]
     fn exists_property_with_type_should_return_false_if_property_is_undefined() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
-        assert!(!obj.exists_property_with_type::<i32>(&"NOThallo"));
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        assert!( !obj.exists_property_with_type::<i32>( &"NOThallo" ));
     }
 
     #[test]
     fn exists_property_with_type_should_return_fals_if_the_type_mismatches() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
-        assert!(!obj.exists_property_with_type::<u16>(&"hallo"));
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        assert!( !obj.exists_property_with_type::<u16>( &"hallo" ));
     }
 
     #[test]
     fn create_property_should_return_true_if_key_is_new() {
         let mut obj = create_dummy();
-        assert!(obj.create_property("hallo", Box::new(23i32)).is_ok());
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
     }
 
     
@@ -282,104 +343,104 @@ mod test {
     #[test]
     fn create_property_should_return_false_if_key_already_exists() {
         let mut obj = create_dummy();
-        assert!(  obj.create_property("hallo", Box::new(23i32)).is_ok());
-        assert!( !obj.create_property("hallo", Box::new(20i32)).is_ok());
+        assert!(  obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        assert!( !obj.create_property( "hallo", Box::new( 20i32 )).is_ok() );
 
     }
 
     #[test]
     fn set_property_should_err_if_property_does_not_exist() {
         let mut obj = create_dummy();
-        assert!( !obj.exists_property(&"hallo") );
-        let res = obj.set_property(&"hallo", Box::new(44i32));
-        assert_eq!(res, Err(Box::new(44i32)));
+        assert!( !obj.exists_property( &"hallo" ) );
+        let res = obj.set_property( &"hallo", Box::new( 44i32 ));
+        assert_eq!( res, Err( Box::new( 44i32 )) );
     }
 
     #[test]
     fn set_property_should_err_if_property_type_is_wrong() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
-        let res = obj.set_property(&"hallo", Box::new("oh falsch"));
-        assert_eq!(res, Err(Box::new("oh falsch")));
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        let res = obj.set_property( &"hallo", Box::new( "oh falsch" ));
+        assert_eq!( res, Err( Box::new( "oh falsch" )) );
     }
     
     #[test]
     fn set_property_should_return_the_old_value_if_property_exists_and_type_matches() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
-        let res = obj.set_property(&"hallo", Box::new(44i32));
-        assert_eq!(res, Ok(Box::new(23i32)));
-        //obj["hallo"] expands to obj.index(&"hallo") 
-        assert_eq!(obj["hallo"].as_ref::<i32>().unwrap(), &44i32);
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        let res = obj.set_property( &"hallo", Box::new( 44i32 ));
+        assert_eq!( res, Ok( Box::new( 23i32 )) );
+        //obj["hallo"] expands to obj.index( &"hallo" ) 
+        assert_eq!( obj["hallo"].as_ref::<i32>().unwrap(), &44i32 );
     }
 
     #[test]
     fn remove_property_should_fail_if_property_does_not_exists() {
         let mut obj = create_dummy();
-        let res = obj.remove_property::<i32>(&"hallo");
-        assert_eq!(res, Err( () ));
+        let res = obj.remove_property::<i32>( &"hallo" );
+        assert_eq!( res, Err( () ) );
     }
 
     #[test]
     fn remove_property_should_fail_if_the_type_mismatches() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
-        let res = obj.remove_property::<u16>(&"hallo");
-        assert_eq!(res, Err( () ));
-        assert!(obj.exists_property(&"hallo"));
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        let res = obj.remove_property::<u16>( &"hallo" );
+        assert_eq!( res, Err( () ) );
+        assert!( obj.exists_property( &"hallo" ));
     }
 
     #[test]
     fn remove_property_should_return_the_property_value_if_succesful() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
-        let res = obj.remove_property::<i32>(&"hallo");
-        assert_eq!(res, Ok(Box::new(23i32)));
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
+        let res = obj.remove_property::<i32>( &"hallo" );
+        assert_eq!( res, Ok( Box::new( 23i32 )) );
     }
 
     //TODO test index
     #[test]
     fn index_should_return_the_property_if_existing() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
         let ref res = obj["hallo"];
-        assert!(res.is_inner_type::<i32>());
+        assert!( res.is_inner_type::<i32>() );
         match res.as_ref::<i32>() {
-            Some(ref_val) => assert_eq!(ref_val, &23i32),
-            None => panic!("expected to be borrowable in this situration")
+            Some( ref_val ) => assert_eq!( ref_val, &23i32 ),
+            None => panic!( "expected to be borrowable in this situration" )
         }   
     }
 
     #[test]
     fn index_should_return_a_property_of_type_undefined_if_inexisting() {
         let obj = create_dummy();
-        assert!(obj["hallo"].is_inner_type::<UndefinedProperty>());
+        assert!( obj["hallo"].is_inner_type::<UndefinedProperty>() );
     }
 
     #[test]
     fn index_should_also_allow_mutable_access() {
         let mut obj = create_dummy();
-        assert!( obj.create_property("hallo", Box::new(23i32)).is_ok());
+        assert!( obj.create_property( "hallo", Box::new( 23i32 )).is_ok() );
         match obj["hallo"].as_mut::<i32>() {
-            Some(ref_val) => {
+            Some( ref_val ) => {
                 let mut dummy = 23i32;
-                assert_eq!(ref_val, &mut dummy)
+                assert_eq!( ref_val, &mut dummy )
             }
-            None => panic!("expected to be borrowable in this situration")
+            None => panic!( "expected to be borrowable in this situration" )
         }   
     }
     
     #[test]
     fn undefined_property_should_return_a_property_of_the_undefined_property_type() {
         let x = undefined_property();
-        assert!(x.is_inner_type::<UndefinedProperty>());
+        assert!( x.is_inner_type::<UndefinedProperty>() );
     }
 
     #[test]
     fn creation_guard_should_be_settable() { 
-        let guard = Box::new(move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { true });
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { true } );
         let mut obj = create_dummy();
-        obj.set_creation_guard(Some(guard as CreatePropertyGuard<Key>));
+        obj.set_creation_guard( Some( guard as CreatePropertyGuard<Key> ));
     }
     
     #[test]
@@ -387,12 +448,12 @@ mod test {
         use std::rc::Rc;
         use std::cell::RefCell;
 
-        let shared = Rc::new(RefCell::new(true));
+        let shared = Rc::new( RefCell::new( true ));
         let cp_shared = shared.clone();
-        let guard = Box::new(move |obj: &InnerDynObject<Key>, key: &Key, ok: bool| -> bool {
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok: bool| -> bool {
             *cp_shared.borrow_mut() = ok;
             true
-        });
+        } );
         let mut obj = create_dummy();
         obj.set_creation_guard( Some( guard as CreatePropertyGuard<Key> ) );
         assert!( obj.create_property( "hallo", Box::new( 23i32 ) ).is_ok() );
@@ -403,10 +464,103 @@ mod test {
 
 
     #[test]
-    fn if_successfull_but_guard_returns_false_be_not_successfull() { 
-        let guard = Box::new(move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { true });
+    fn for_creation_guard_it_should_be_possible_to_fail_creations() { 
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { false } );
         let mut obj = create_dummy();
-        obj.set_creation_guard(Some(guard as CreatePropertyGuard<Key>));
-    
+        obj.set_creation_guard( Some( guard as CreatePropertyGuard<Key> ));
+        assert!( obj.create_property("hallo", Box::new( 22i32 ) ).is_err() )
     }
+   
+    #[test]
+    fn remove_guard_should_be_called_with_correct_parameters() { 
+        use std::rc::Rc;
+        use std::cell::RefCell;
+
+        let shared = Rc::new( RefCell::new( true ));
+        let cp_shared = shared.clone();
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok: bool| -> bool {
+            *cp_shared.borrow_mut() = ok;
+            true
+        } );
+        let mut obj = create_dummy();
+        obj.set_remove_guard( Some( guard as RemovePropertyGuard<Key> ) );
+        assert!( obj.create_property( "hallo", Box::new( 23i32 ) ).is_ok() );
+        assert!( obj.remove_property::<i32>( &"hallo" ).is_ok() );
+        assert_eq!( *shared.borrow(), true );
+        assert!( !obj.remove_property::<i32>( &"hallo" ).is_ok() );
+        assert_eq!( *shared.borrow(), false );
+    }
+
+    #[test]
+    fn access_ref_guard_should_be_called_with_correct_parameters() { 
+        use std::rc::Rc;
+        use std::cell::RefCell;
+
+        let shared = Rc::new( RefCell::new( true ));
+        let cp_shared = shared.clone();
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok: bool| -> bool {
+            *cp_shared.borrow_mut() = ok;
+            true
+        } );
+        let mut obj = create_dummy();
+        obj.set_access_ref_guard( Some( guard as AccessRefPropertyGuard<Key> ) );
+        assert!( obj.create_property( "hallo", Box::new( 23i32 ) ).is_ok() );
+        assert!( !obj["hallo"].is_inner_type::<UndefinedProperty>() );
+        assert_eq!( *shared.borrow(), true );
+        assert!( obj["halloa"].is_inner_type::<UndefinedProperty>() );
+        assert_eq!( *shared.borrow(), false );  
+    }
+   
+    #[test]
+    fn access_mut_guard_should_be_called_with_correct_parameters() {
+        use std::rc::Rc;
+        use std::cell::RefCell;
+
+        let shared = Rc::new( RefCell::new( true ));
+        let cp_shared = shared.clone();
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok: bool| -> bool {
+            *cp_shared.borrow_mut() = ok;
+            true
+        } );
+        let mut obj = create_dummy();
+        obj.set_access_mut_guard( Some( guard as AccessMutPropertyGuard<Key> ) );
+        assert!( obj.create_property( "hallo", Box::new( 23i32 ) ).is_ok() );
+        assert!( !(&mut obj["hallo"]).is_inner_type::<UndefinedProperty>() );
+        assert_eq!( *shared.borrow(), true );
+        assert!( (&mut obj["halloa"]).is_inner_type::<UndefinedProperty>() );
+        assert_eq!( *shared.borrow(), false ); 
+    }
+
+    #[test]
+    fn for_remove_guard_it_should_be_possible_to_fail_a_removeing() { 
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { false } );
+        let mut obj = create_dummy();
+        obj.set_remove_guard( Some( guard as CreatePropertyGuard<Key> ));
+        assert!( obj.create_property( "hallo", Box::new( 2i32 ) ).is_ok() );
+        assert!( obj.remove_property::<i32>( &"hallo" ).is_err() );
+        assert!( obj.exists_property( &"hallo" ) );
+    }
+    
+    #[test]
+    fn for_access_ref_guard_it_should_be_possible_to_fail_a_access() {
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { false } );
+        let mut obj = create_dummy();
+        obj.set_access_ref_guard( Some( guard as AccessRefPropertyGuard<Key> ));
+        assert!( obj.create_property( "hallo", Box::new( 2i32 ) ).is_ok() );
+        assert!( obj.exists_property( &"hallo" ) );
+        assert!( obj["hallo"].is_inner_type::<UndefinedProperty>() );
+    }
+    
+    #[test]
+    fn for_access_mut_guard_it_should_be_possible_to_fail_a_access() { 
+        let guard = Box::new( move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { false } );
+        let mut obj = create_dummy();
+        obj.set_access_mut_guard( Some( guard as AccessMutPropertyGuard<Key> ));
+        assert!( obj.create_property( "hallo", Box::new( 2i32 ) ).is_ok() );
+        assert!( obj.exists_property( &"hallo" ) );
+        assert!( (&mut obj["hallo"]).is_inner_type::<UndefinedProperty>() );
+    }
+    
+    //TODO make sure the object does not change ( e.g. the guard becomes None ) if guard is called
+    //( on remove, create, access_mut )
 }
