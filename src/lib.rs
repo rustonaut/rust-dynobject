@@ -32,7 +32,6 @@ pub use dyn_property::DynProperty;
 pub use inner_dyn_object::UndefinedProperty;
 pub use inner_dyn_object::InnerDynObject;
 
-pub use inner_dyn_object::SetPropertyGuard;
 pub use inner_dyn_object::CreatePropertyGuard;
 pub use inner_dyn_object::RemovePropertyGuard;
 pub use inner_dyn_object::AccessRefPropertyGuard;
@@ -66,36 +65,18 @@ pub mod guard_helper {
     /// # Note
     /// guards are optional so nop is not realy needed
     #[allow(unused_variables)]
-    pub fn nop<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+    pub fn nop<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
         where Key: Eq + Hash
     {   
         true 
     }
     
-    /// a variation of `nop` usable for `AccessPropertyGuardRef`
-    #[allow(unused_variables)]
-    pub fn nop_no_mut<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
-        where Key: Eq + Hash
-    {   
-        true 
-    }
     
     /// panics whenever a operation failed
     ///
     /// whenever a operation failed and would normaly return a Err this guard will panic
     #[allow(unused_variables)]
-    pub fn panic_on_fail<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
-        where Key: Eq + Hash
-    {   
-        if succeded == false {
-            panic!("automaicly panicing on failed operation")
-        }
-        true
-    }
-
-    /// a `panic_on_fail` (helper function) variation for `AccessPropertyGuardRef`
-    #[allow(unused_variables)]
-    pub fn panic_on_fail_no_mut<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+    pub fn panic_on_fail<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
         where Key: Eq + Hash
     {   
         if succeded == false {
@@ -111,7 +92,7 @@ pub mod guard_helper {
     /// immutable even when having a mutable reference. Like with all guards this can
     /// lead to unexpected behaviour
     #[allow(unused_variables)]
-    pub fn lock<'a, Key>(obj: &'a mut InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
+    pub fn lock<'a, Key>(obj: &'a InnerDynObject<Key>, key: &'a Key, succeded: bool) -> bool
         where Key: Eq + Hash
     {   
         false

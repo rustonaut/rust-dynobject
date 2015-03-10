@@ -5,6 +5,7 @@ use std::hash::Hash;
 use std::any::Any;
 use std::rc::Weak;
 use std::cell::RefCell;
+use std::mem;
 
 //import and reexport dyn_property
 use super::dyn_property::DynProperty;
@@ -14,11 +15,12 @@ use super::dyn_property::DynProperty;
 //the last bool indikates if the operation normaly would have succeded(true). if so but false is returned
 //it will also fail, even through normaly valide. Use e.g. if succeded == false { panic!("auto
 //panic on failure") }
-pub type SetPropertyGuard<Key> = FnMut(&mut InnerDynObject<Key>, &Key, bool) -> bool;
-pub type CreatePropertyGuard<Key> = FnMut(&mut InnerDynObject<Key>, & Key, bool) -> bool;
-pub type RemovePropertyGuard<Key> = FnMut(&mut InnerDynObject<Key>, & Key, bool) -> bool;
-pub type AccessRefPropertyGuard<Key> = FnMut(&InnerDynObject<Key>, & Key, bool) -> bool;
-pub type AccessMutPropertyGuard<Key> = FnMut(&mut InnerDynObject<Key>, &Key) -> bool;
+//ATENTION! the passed InnerDynObject can! be manipulated by creating a DynObject form it and then
+//borrowing it mutable, this is not intended to be used but not a bug in itself!
+pub type CreatePropertyGuard<Key> = Box<FnMut(&InnerDynObject<Key>, &Key, bool) -> bool>;
+pub type RemovePropertyGuard<Key> = Box<FnMut(&InnerDynObject<Key>, &Key, bool) -> bool>;
+pub type AccessRefPropertyGuard<Key> = Box<FnMut(&InnerDynObject<Key>, &Key, bool) -> bool>;
+pub type AccessMutPropertyGuard<Key> = Box<FnMut(&InnerDynObject<Key>, &Key, bool) -> bool>;
 
 
 /// zero sized type used as "is undefined" marker
@@ -40,11 +42,10 @@ pub struct InnerDynObject<Key> {
     //to create a DynObject instance from a InnerDynObject instance
     uplink: Option<Weak<RefCell<InnerDynObject<Key>>>>,
 
-    set_guard: Option<Box<SetPropertyGuard<Key>>>,
-    create_guard: Option<Box<CreatePropertyGuard<Key>>>,
-    remove_guard: Option<Box<RemovePropertyGuard<Key>>>,
-    access_ref_guard: Option<Box<AccessRefPropertyGuard<Key>>>,
-    access_mut_guard: Option<Box<AccessMutPropertyGuard<Key>>>
+    create_guard: Option<CreatePropertyGuard<Key>>,
+    remove_guard: Option<RemovePropertyGuard<Key>>,
+    access_ref_guard: Option<AccessRefPropertyGuard<Key>>,
+    access_mut_guard: Option<AccessMutPropertyGuard<Key>>
 
 }
 
@@ -62,7 +63,6 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
             undefined_property: undefined_property(),
             data: HashMap::<Key, DynProperty>::new(),
             uplink: None,
-            set_guard: None,
             create_guard: None,
             remove_guard: None,
             access_ref_guard: None,
@@ -70,6 +70,11 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
         }
     }
     
+    fn set_creation_guard(&mut self, mut guard: Option<CreatePropertyGuard<Key>>) -> Option<CreatePropertyGuard<Key>> {
+        mem::swap(&mut self.create_guard,&mut guard);
+        guard
+    }
+
     //TODO think about making set/get uplink unsafe to show it (only logicaly existing)
     //unsafeness, neverless it is not unsafe in the rust-lang unsafe sense
     /// sets the uplink of this calls
@@ -124,11 +129,26 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     pub fn create_property<T>(&mut self, key: Key, init_value: Box<T>) -> Result<(),Box<T>> 
         where T: Any + 'static  
     {
-        if self.data.contains_key(&key) {
-            Err(init_value)
-        } else {
+        let mut guard_fn: Option<CreatePropertyGuard<Key>> = None;
+
+        //TODO MAKE MACRO OR FN TO PREVENT ERRORS
+        //have to move guard_dn out and back in, else we would borrow self mutable twice (once
+        //because it is FnMut twice because we also pass &mut self as parameter)
+        mem::swap(&mut guard_fn, &mut self.create_guard);
+        let mut ok = !self.data.contains_key(&key);
+        if guard_fn.is_some() {
+            //FIXME BUG, if guad_fn adds somthing with the given key,
+            //it will be imediatly overriden... maybe change th passed reference
+            //to &self instead of &mut self
+            ok &= guard_fn.as_mut().unwrap()(self, &key, ok);
+        }
+        mem::swap(&mut guard_fn, &mut self.create_guard);
+
+        if ok {
             self.data.insert(key, DynProperty::new(init_value));
             Ok( () )
+        } else {
+            Err(init_value)
         }
     }
     
@@ -203,12 +223,16 @@ impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
 
 #[cfg(test)]
 mod test {
+    #![allow(unused_variables)]
+    type Key = &'static str;
+
     use super::InnerDynObject;
     use super::UndefinedProperty;
     use super::undefined_property;
-
-    fn create_dummy() -> InnerDynObject<&'static str> {
-        InnerDynObject::<&'static str>::new()
+    use super::CreatePropertyGuard;
+    
+    fn create_dummy() -> InnerDynObject<Key> {
+        InnerDynObject::<Key>::new()
     }
 
     #[test]
@@ -349,5 +373,40 @@ mod test {
     fn undefined_property_should_return_a_property_of_the_undefined_property_type() {
         let x = undefined_property();
         assert!(x.is_inner_type::<UndefinedProperty>());
+    }
+
+    #[test]
+    fn creation_guard_should_be_settable() { 
+        let guard = Box::new(move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { true });
+        let mut obj = create_dummy();
+        obj.set_creation_guard(Some(guard as CreatePropertyGuard<Key>));
+    }
+    
+    #[test]
+    fn creation_guad_should_be_called_on_creations_with_correct_parameters() { 
+        use std::rc::Rc;
+        use std::cell::RefCell;
+
+        let shared = Rc::new(RefCell::new(true));
+        let cp_shared = shared.clone();
+        let guard = Box::new(move |obj: &InnerDynObject<Key>, key: &Key, ok: bool| -> bool {
+            *cp_shared.borrow_mut() = ok;
+            true
+        });
+        let mut obj = create_dummy();
+        obj.set_creation_guard( Some( guard as CreatePropertyGuard<Key> ) );
+        assert!( obj.create_property( "hallo", Box::new( 23i32 ) ).is_ok() );
+        assert_eq!( *shared.borrow(), true );
+        assert!( !obj.create_property( "hallo", Box::new( 23i32 ) ).is_ok() );
+        assert_eq!( *shared.borrow(), false );
+    }
+
+
+    #[test]
+    fn if_successfull_but_guard_returns_false_be_not_successfull() { 
+        let guard = Box::new(move |obj: &InnerDynObject<Key>, key: &Key, ok:bool| -> bool { true });
+        let mut obj = create_dummy();
+        obj.set_creation_guard(Some(guard as CreatePropertyGuard<Key>));
+    
     }
 }
