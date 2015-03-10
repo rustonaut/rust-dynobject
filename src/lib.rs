@@ -12,6 +12,17 @@
 // See the License for the specific language governing permissions and 
 // limitations under the License.
 
+
+//! DynObject is a kind of dynamic object witch allows creating and deleting properties at runtime.
+//!
+//! DynObject does runtime type checks over genereic functions so that the rest of your programm don't has to care mutch
+//! about it. Neverless this has three backdrawings:
+//!
+//! 1. Accessing the variables allways returns a Result.
+//! 2. it has to own the data.
+//! 3. it's slower. 
+//!
+
 //alloc is needed for BoxAny, witch willl most like be removed in the future
 //this is not a problem because the methodes of BoxAny will the most like
 //become part of Any so that this lib can be updated by removing the 
@@ -32,17 +43,6 @@ pub use dyn_property::DynProperty;
 pub use inner_dyn_object::UndefinedProperty;
 pub use inner_dyn_object::InnerDynObject;
 
-///! 
-///! InnerDynObject is a kind of dynamic object witch allows
-///! creating and deleting properties at runtime.
-///! This includs runtime type checks over genereic functions
-///! so that the rest of your programm don't has to care mutch
-///! about. Neverless this has three backdrawings:
-///!   1. Accessing the variables allways returns a Result
-///!   2. it has to own the data
-///!   3. it's slower. If you have a group of variables putng
-///!      them into a POD rust object and then puting it into
-///!      InnerDynObject might be preferable
 
 mod dyn_property;
 mod inner_dyn_object;
@@ -70,13 +70,27 @@ impl<Key> DynObject<Key> where Key: Eq+Hash {
         }
     }
     
-    /// aquire the DynObject to perform operations on it
+    /// aquire the DynObject to perform operations on it,
+    /// note that DynObject has interior mutablilty and
+    /// therefor borrowing it mutiple times as immutable
+    /// reference will panic at runtime!!
     ///
     /// # Panics
     /// panics if someone else aquired it and didn't relase it jet
     /// (by droping the returned RefMut, witch is often done 
     /// implicitly)
-    pub fn aquire(&mut self) -> RefMut<InnerDynObject<Key>> {
+    ///
+    /// e.g. the folowing will panic
+    ///
+    /// ```should_panic
+    /// # use dynobject::DynObject;
+    /// let obj = DynObject::<i32>::new();
+    /// let v1 = obj.aquire();
+    /// //compiles but PANICS!
+    /// let v2 = obj.aquire();
+    /// ```
+    ///
+    pub fn aquire(&self) -> RefMut<InnerDynObject<Key>> {
         self.inner.borrow_mut()
     }
 }
@@ -108,36 +122,36 @@ mod test_dyn_object {
     
     #[test]
     fn aquire_should_not_panic_if_only_on_instance_exists() {
-        let mut x = create_dummy();
+        let x = create_dummy();
         let data = x.aquire();
     }
 
     #[test]
     #[should_fail]
     fn aquire_multiple_times_should_panic() {
-        let mut x = create_dummy();
-        let mut obj_ref_2 = x.clone();
+        let x = create_dummy();
+        let obj_ref_2 = x.clone();
         let data = x.aquire();
         let data2 = obj_ref_2.aquire();
     }
 
     #[test]
     fn aquire_multiple_times_after_relasing_each_should_not_fail() {
-        let mut x = create_dummy();
+        let x = create_dummy();
         {
             let data = x.aquire();
         }
         let data2 = x.aquire();
     }
     
-    fn set_data(mut target: DynObject<&'static str>, value: i32) {
+    fn set_data(target: DynObject<&'static str>, value: i32) {
         assert!(target.aquire().create_property(&"hallo", Box::new(value)).is_ok());
     }
 
     #[test]
     fn mutiple_cloned_dyn_object_should_share_the_same_core() {
         let value = 23i32;
-        let mut obj1 = create_dummy(); 
+        let obj1 = create_dummy(); 
         set_data(obj1.clone(), value);
         let obj = obj1.aquire();
         match obj["hallo"].as_ref::<i32>() {

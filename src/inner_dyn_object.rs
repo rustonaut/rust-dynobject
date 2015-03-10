@@ -17,6 +17,11 @@ pub fn undefined_property() -> DynProperty {
     DynProperty::new( Box::new( UndefinedProperty ))
 }
 
+/// The inner part of DynamicObject witch contains the data
+///
+/// This Trait provids a way to create, add, remove and
+/// modify typed propertys defined by a given Key
+///
 pub struct InnerDynObject<Key> {
     //initialise this allways with DynProperty::undefined();
     //FIXME move this as assoziated Konstant ( with unsave ) or static
@@ -24,11 +29,6 @@ pub struct InnerDynObject<Key> {
     data: HashMap<Key, DynProperty>
 }
 
-/// The inner part of DynamicObject witch contains the data
-///
-/// This Trait provids a way to create, add, remove and
-/// modify typed propertys defined by a given Key
-///
 impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     
     /// Creates a new empty InnerDynObject

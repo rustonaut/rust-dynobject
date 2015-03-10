@@ -4,10 +4,6 @@ use std::any::Any;
 use std::boxed::BoxAny;
 
 
-pub struct DynProperty {
-    value: Box<Any+'static>
-}
-
 /// The `DynProperty` is a Wrapper around `Box<Any>` 
 ///
 /// `DynProperty` provides methodes a saftily access the 
@@ -19,6 +15,10 @@ pub struct DynProperty {
 /// it will allways contains a `Vec<i32>` until destructed
 ///
 ///
+pub struct DynProperty {
+    value: Box<Any+'static>
+}
+
 impl DynProperty {
 
     /// creats a new DynProperty with given initial value
