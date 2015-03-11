@@ -1,19 +1,3 @@
-# dynobject
-Kind of dynamic Objects for rust. Allowing to create, change and access typed properties with runtime type checks
-
-**Note:** Rust has perfectly fine mechanismen to do mostly everything without refering to such a roundabout _crates_ like _dynobject_
-
-The DynObject is a dynamic Object witch has interiour mutablility and reference counting allowing it easly to be shared betwenn
-ownership boundaries (but not threads!). When acccessing properties it is ensured that no objects are destructed per default when
-a operation fails (`expect DynProperty::destruct`). This nevertheless means that you will have to handle many results. But there
-are some nice result levering macros like `try!` to keep you code cleaner.
-
-The dokumentation is done over the rustdoc tool, seadly I havent integrated it yet into github so you need to run rustdoc yourself
-or look into the source files.
-
-# Examples
-
-```rust
 extern crate dynobject;
 
 use dynobject::DynObject;
@@ -67,9 +51,11 @@ fn main() {
 		runner: Box::new( |data: &DynObject<Key>| -> bool {
 			let mut obj = data.aquire();
 			*obj["counter2"].as_mut::<u32>().unwrap() += 2;
-            let ref_2_counter1 = obj["counter1"].as_mut::<u32>().unwrap();
-            *ref_2_counter1 -= 1;
-            *ref_2_counter1 > 0 
+            {
+                let ref_2_counter1 = obj["counter1"].as_mut::<u32>().unwrap();
+                *ref_2_counter1 -= 1;
+                *ref_2_counter1 > 0
+            }
 		} )
 	};
 	
@@ -82,13 +68,3 @@ fn main() {
     let limit = accessor["limit"].as_ref::<u32>().unwrap();
 	println!( "c1: {}, c2: {}, limit: {}", c1, c2, limit );
 }	
-```
-
-# Calling Guards
-There is a calling guard branch witch extends the Object by Funktion/Closure based Guards witch are called on create, remove, access(mut),
-access(ref) operatons and let the fail. This is usefull for logging purpose and some other stuff. Neverless due too the limitations
-of the current design thes will not be merged with the main branch (even throug a programm compatible with the mainbranch should be
-compatible with the calling-guard branch too, due too the same method signatures).
-
-# License
-Apache v2
