@@ -43,6 +43,7 @@ fn run_to_end(pr: &Processor) {
 }
 
 fn setup_data(outer_obj: &DynObject<Key>) {
+	#![allow(unused_must_use)]
 	let mut obj = outer_obj.aquire();
 	obj.create_property("counter1", Box::new(0u32));
 	obj.create_property("counter2", Box::new(1u32));
