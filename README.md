@@ -1,5 +1,5 @@
 # dynobject
-[![Build Status](https://travis-ci.org/naicode/rust-dynobject.svg?branch=master)](https://travis-ci.org/naicode/rust-dynobject)
+[![Build Status](https://travis-ci.org/naicode/rust-dynobject.svg?branch=calling-guards)](https://travis-ci.org/naicode/rust-dynobject)
 
 Kind of dynamic Objects for rust. Allowing to create, change and access typed properties with runtime type checks
 
