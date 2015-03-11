@@ -43,11 +43,26 @@ pub use dyn_property::DynProperty;
 pub use inner_dyn_object::UndefinedProperty;
 pub use inner_dyn_object::InnerDynObject;
 
+<<<<<<< HEAD
 pub use inner_dyn_object::CreatePropertyGuard;
 pub use inner_dyn_object::RemovePropertyGuard;
 pub use inner_dyn_object::AccessRefPropertyGuard;
 pub use inner_dyn_object::AccessMutPropertyGuard;
 
+
+///! 
+///! InnerDynObject is a kind of dynamic object witch allows
+///! creating and deleting properties at runtime.
+///! This includs runtime type checks over genereic functions
+///! so that the rest of your programm don't has to care mutch
+///! about. Neverless this has three backdrawings:
+///!   1. Accessing the variables allways returns a Result
+///!   2. it has to own the data
+///!   3. it's slower. If you have a group of variables putng
+///!      them into a POD rust object and then puting it into
+///!      InnerDynObject might be preferable
+=======
+>>>>>>> master
 
 mod dyn_property;
 mod inner_dyn_object;
@@ -121,6 +136,7 @@ impl<Key> DynObject<Key> where Key: Eq+Hash {
         DynObject { inner: rc }
     }
     
+<<<<<<< HEAD
     /// create a DynObject from a reference to a InnerDynObject 
     ///
     /// This InnerDynObject has have a uplink, witch is the case if it origins in
@@ -146,10 +162,13 @@ impl<Key> DynObject<Key> where Key: Eq+Hash {
         }
     }
 
+    /// aquire the DynObject to perform operations on it
+=======
     /// aquire the DynObject to perform operations on it,
     /// note that DynObject has interior mutablilty and
     /// therefor borrowing it mutiple times as immutable
     /// reference will panic at runtime!!
+>>>>>>> master
     ///
     /// # Panics
     /// panics if someone else aquired it and didn't relase it jet
@@ -246,7 +265,7 @@ mod test_dyn_object {
 
     #[test]
     fn create_from_should_work_with_a_valid_reference() {
-        let obj = create_dummy();
+        let mut obj = create_dummy();
         let obj_ref = obj.aquire();
         let obj2 = DynObject::<&'static str>::create_from(&obj_ref);
         //no panic -> ok
@@ -254,8 +273,8 @@ mod test_dyn_object {
 
     #[test]
     fn instances_created_with_create_from_should_share_state() {
-        let obj = create_dummy();
-        let obj2 = {
+        let mut obj = create_dummy();
+        let mut obj2 = {
             let mut obj_ref = obj.aquire();
             let res = DynObject::<&'static str>::create_from(&obj_ref);
             assert!(obj_ref.create_property("hallo", Box::new(22i32)).is_ok());

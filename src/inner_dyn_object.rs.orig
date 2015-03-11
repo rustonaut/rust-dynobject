@@ -145,6 +145,7 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     pub fn create_property<T>( &mut self, key: Key, init_value: Box<T> ) -> Result<(),Box<T>> 
         where T: Any + 'static  
     {
+<<<<<<< HEAD
         let mut ok = !self.data.contains_key( &key );
 
         {
@@ -163,6 +164,11 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
         }
 
         if ok {
+=======
+        if self.data.contains_key( &key ) {
+            Err( init_value )
+        } else {
+>>>>>>> master
             self.data.insert( key, DynProperty::new( init_value ));
             Ok( () )
         } else {
@@ -181,6 +187,7 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
     pub fn remove_property<T>( &mut self, key: &Key ) -> Result<Box<T>, ()> 
         where T: Any + 'static
     {
+<<<<<<< HEAD
         let mut ok = self.index( key ).is_inner_type::<T>();
         
         {
@@ -197,6 +204,12 @@ impl<Key> InnerDynObject<Key> where Key: Eq + Hash {
         } else {
             Err( () )
         }
+=======
+        if !self.index( key ).is_inner_type::<T>() {
+            return Err( () );
+        }
+        Ok( self.data.remove( key ).unwrap().destruct::<T>().unwrap() )
+>>>>>>> master
     }
 
     /// returns true if a given property exists
@@ -224,6 +237,7 @@ impl<Key: Hash+Eq> Index<Key> for InnerDynObject<Key> {
     /// a property with the inner type `UndefinedProperty` will be returned.
     ///
     fn index<'a>( &'a self, index: &Key ) -> &'a DynProperty {
+<<<<<<< HEAD
         let ( ok, data ) = match self.data.get( index ) {
             Some( data ) => ( true, data ),
             None => ( false, &self.undefined_property )
@@ -240,6 +254,11 @@ impl<Key: Hash+Eq> Index<Key> for InnerDynObject<Key> {
             data
         } else {
             &self.undefined_property
+=======
+        match self.data.get( index ) {
+            Some( data ) => data,
+            None => &self.undefined_property
+>>>>>>> master
         }
 
     }
@@ -258,6 +277,7 @@ impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
     /// because UndefinedProperty is a zero sized type and therfor has only one representation.
     ///
     fn index_mut<'a>( &'a mut self, index: &Key ) -> &'a mut DynProperty {
+<<<<<<< HEAD
         let ok = self.data.contains_key( index );
         let mut ack = true;
         {
@@ -275,6 +295,11 @@ impl<Key: Hash+Eq> IndexMut<Key> for InnerDynObject<Key> {
             }
         } else {
             &mut self.undefined_property
+=======
+        match self.data.get_mut( index ) {
+            Some( data ) => data,
+            None => &mut self.undefined_property
+>>>>>>> master
         }
     }
 }
@@ -434,6 +459,7 @@ mod test {
     fn undefined_property_should_return_a_property_of_the_undefined_property_type() {
         let x = undefined_property();
         assert!( x.is_inner_type::<UndefinedProperty>() );
+<<<<<<< HEAD
     }
 
     #[test]
@@ -539,6 +565,8 @@ mod test {
         assert!( obj.create_property( "hallo", Box::new( 2i32 ) ).is_ok() );
         assert!( obj.remove_property::<i32>( &"hallo" ).is_err() );
         assert!( obj.exists_property( &"hallo" ) );
+=======
+>>>>>>> master
     }
     
     #[test]
